@@ -26,6 +26,13 @@ func (*jsonUtil) LintJSON(jsonText string) string {
 	return string(b.Bytes())
 }
 
+func (*jsonUtil) DataToJSONString(data interface{}) (string, error) {
+	b := new(bytes.Buffer)
+	encoder := json.NewEncoder(b)
+	err := encoder.Encode(data)
+	return string(b.Bytes()), err
+}
+
 func (*jsonUtil) LintJSONFromData(data interface{}) string {
 
 	b := new(bytes.Buffer)
@@ -36,10 +43,23 @@ func (*jsonUtil) LintJSONFromData(data interface{}) string {
 	return string(b.Bytes())
 }
 
-func (*jsonUtil) ParseStreamToMap(r io.Reader) (map[string]interface{}, error) {
+func (j *jsonUtil) ParseStreamToMap(r io.Reader) (map[string]interface{}, error) {
 	var data map[string]interface{}
-	err := json.NewDecoder(r).Decode(&data)
+	err := j.ParseFromStream(r, &data)
 	return data, err
+}
+
+func (*jsonUtil) ParseFromStream(r io.Reader, v interface{}) error {
+	decoder := json.NewDecoder(r)
+	// decoder.UseNumber()
+	err := decoder.Decode(v)
+	return err
+}
+func (*jsonUtil) ParseFromBytes(data []byte, v interface{}) error {
+	decoder := json.NewDecoder(bytes.NewBuffer(data))
+	// decoder.UseNumber()
+	err := decoder.Decode(v)
+	return err
 }
 
 func (c *jsonUtil) MapToString(data map[string]interface{}) (string, error) {
