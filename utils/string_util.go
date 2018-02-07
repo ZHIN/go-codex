@@ -3,11 +3,15 @@ package utils
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"math/rand"
 	"strconv"
+	"time"
 )
 
 type String_Util struct {
 }
+
+var StringUtil = String_Util{}
 
 func (s *String_Util) MD5Text(inputText string) string {
 	hasher := md5.New()
@@ -56,4 +60,13 @@ func (s *String_Util) StrToInt32(stringValue string) int32 {
 	return int32(value)
 }
 
-var StringUtil = String_Util{}
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+func (s *String_Util) Rand(n int) string {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
