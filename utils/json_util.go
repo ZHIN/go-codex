@@ -51,13 +51,13 @@ func (j *jsonUtil) ParseStreamToMap(r io.Reader) (map[string]interface{}, error)
 
 func (*jsonUtil) ParseFromStream(r io.Reader, v interface{}) error {
 	decoder := json.NewDecoder(r)
-	// decoder.UseNumber()
+	decoder.UseNumber()
 	err := decoder.Decode(v)
 	return err
 }
 func (*jsonUtil) ParseFromBytes(data []byte, v interface{}) error {
 	decoder := json.NewDecoder(bytes.NewBuffer(data))
-	// decoder.UseNumber()
+	decoder.UseNumber()
 	err := decoder.Decode(v)
 	return err
 }
