@@ -2,7 +2,7 @@ package web
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/zhin/go-codex/hdata"
+	"github.com/zhin/go-codex/cerror"
 )
 
 var Default *gin.Engine
@@ -47,7 +47,7 @@ func (r *JSONResult) Error(msg ...interface{}) *JSONResult {
 		if len(msg) == 1 {
 			if val, ok := msg[0].(int); ok {
 				r.Code = val
-			} else if val, ok := msg[0].(hdata.Error); ok {
+			} else if val, ok := msg[0].(cerror.CodeError); ok {
 				r.Code = val.Code
 				r.Msg = val.Error()
 			} else if val, ok := msg[0].(string); ok {
