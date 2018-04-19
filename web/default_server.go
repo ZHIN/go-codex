@@ -53,6 +53,8 @@ func (r *JSONResult) Error(msg ...interface{}) *JSONResult {
 			} else if val, ok := msg[0].(string); ok {
 				r.Code = 1
 				r.Msg = val
+			} else if _, ok := msg[0].(error); ok {
+				r.Code = 1
 			}
 		} else if len(msg) == 2 {
 			r.Code = msg[0].(int)
