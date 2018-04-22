@@ -1,6 +1,8 @@
 package web
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"github.com/zhin/go-codex/cerror"
 )
@@ -42,7 +44,7 @@ func (r *JSONResult) Success(msg ...string) *JSONResult {
 }
 
 func (r *JSONResult) Error(msg ...interface{}) *JSONResult {
-
+	var err error
 	if msg != nil {
 		if len(msg) == 1 {
 			if val, ok := msg[0].(int); ok {
@@ -53,8 +55,9 @@ func (r *JSONResult) Error(msg ...interface{}) *JSONResult {
 			} else if val, ok := msg[0].(string); ok {
 				r.Code = 1
 				r.Msg = val
-			} else if _, ok := msg[0].(error); ok {
+			} else if er, ok := msg[0].(error); ok {
 				r.Code = 1
+				err = er
 			}
 		} else if len(msg) == 2 {
 			r.Code = msg[0].(int)
@@ -65,6 +68,9 @@ func (r *JSONResult) Error(msg ...interface{}) *JSONResult {
 	}
 	if r.Msg == "" {
 		r.Msg = "ERR"
+	}
+	if err != nil {
+		log.Println(err)
 	}
 
 	return r
