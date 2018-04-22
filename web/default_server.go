@@ -1,7 +1,10 @@
 package web
 
 import (
+	"fmt"
 	"log"
+
+	"github.com/satori/go.uuid"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zhin/go-codex/cerror"
@@ -70,7 +73,9 @@ func (r *JSONResult) Error(msg ...interface{}) *JSONResult {
 		r.Msg = "ERR"
 	}
 	if err != nil {
-		log.Println(err)
+		guid, _ := uuid.NewV4()
+		r.Msg = fmt.Sprintf("ERR(%s)", guid.String())
+		log.Println("ERROR:", guid.String(), err)
 	}
 
 	return r
