@@ -1,9 +1,6 @@
 package web
 
 import (
-	"fmt"
-	"log"
-
 	"github.com/satori/go.uuid"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +9,8 @@ import (
 
 var Default *gin.Engine
 
+var showErrValue = false
+
 func init() {
 
 	Default = gin.New()
@@ -19,9 +18,28 @@ func init() {
 }
 
 type JSONResult struct {
-	Code int         `json:"code"`
-	Msg  string      `json:"msg"`
-	Data interface{} `json:"data,omitempty"`
+	Code  int         `json:"code"`
+	Msg   string      `json:"msg"`
+	ErrID string      `json:"errid,omitempty"`
+	Data  interface{} `json:"data,omitempty"`
+}
+
+type DBErrorHandle func(errID string, err error)
+
+var errorHandles = []DBErrorHandle{}
+
+func SetDBErrorHook(handle DBErrorHandle) {
+	errorHandles = append(errorHandles, handle)
+}
+
+func triggerErrorHandles(errID string, err error) {
+	if errorHandles != nil {
+		for _, handle := range errorHandles {
+			if handle != nil {
+				handle(errID, err)
+			}
+		}
+	}
 }
 
 func NewJSONResult() *JSONResult {
@@ -74,14 +92,22 @@ func (r *JSONResult) Error(msg ...interface{}) *JSONResult {
 	}
 	if err != nil {
 		guid, _ := uuid.NewV4()
-		r.Msg = fmt.Sprintf("ERR(%s)", guid.String())
-		log.Println("ERROR:", guid.String(), err)
+		if showErrValue {
+			r.Msg = err.Error()
+		} else {
+			r.Msg = "ERR OCCURRED"
+		}
+		r.ErrID = guid.String()
+		triggerErrorHandles(guid.String(), err)
 	}
-
 	return r
 }
 
 func (r *JSONResult) SetData(data interface{}) *JSONResult {
 	r.Data = data
 	return r
+}
+
+func ShowErrorDetail(value bool) {
+	showErrValue = value
 }
