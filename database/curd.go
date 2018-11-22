@@ -231,7 +231,7 @@ func (r *DatabaseRepo) Exec(sql string, values ...interface{}) *DbError {
 	return warpDBError(db, "DB.Exec", fmt.Sprintf("DB.Exec Error Conn:%s SQL:%s WHERE:%s...", r.dbKey, sql, values))
 }
 
-type RowScanHandler func(*sql.Rows) error
+type RowScanHandler func(*gorm.DB, *sql.Rows) error
 type TrasnsationInvokeHandler func(db *gorm.DB) error
 
 func (r *DatabaseRepo) InvokeTransation(callback TrasnsationInvokeHandler) *DbError {
@@ -272,7 +272,7 @@ func (r *DatabaseRepo) RawSelect(rawSQL string, rowScanCallback RowScanHandler, 
 	defer rows.Close()
 	for rows.Next() {
 		if rowScanCallback != nil {
-			err = rowScanCallback(rows)
+			err = rowScanCallback(db, rows)
 			if err != nil {
 				return warpDBError(db, "DB.RawSelect", err.Error())
 
