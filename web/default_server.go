@@ -91,7 +91,7 @@ func (r *JSONResult) Error(msg ...interface{}) *JSONResult {
 		r.Msg = "ERR"
 	}
 	if err != nil {
-		guid, _ := uuid.NewV4()
+		guid := uuid.NewV4()
 		if showErrValue {
 			r.Msg = err.Error()
 		} else {
