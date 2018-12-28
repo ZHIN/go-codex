@@ -83,7 +83,7 @@ var dblock = sync.Mutex{}
 func GetDefault() *DatabaseRepo {
 	return Choice("DEFAULT")
 }
-func SetDefaut(opt DBSetOption) {
+func SetDefault(opt DBSetOption) {
 	SetDBSet("DEFAULT", opt)
 }
 
