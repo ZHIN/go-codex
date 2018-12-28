@@ -16,14 +16,6 @@ type DBSetOption struct {
 	MaxIdleConns       int
 }
 
-func SetDB(dbKey string, _dbType string, connStr string) {
-
-	dbKeyPoool[dbKey] = DBSetOption{
-		DBType:             _dbType,
-		DBConnectionString: connStr,
-	}
-}
-
 func SetDBSet(dbKey string, opt DBSetOption) {
 	dbKeyPoool[dbKey] = opt
 }
@@ -56,6 +48,22 @@ func AutoMigrate(dbKey string, values ...interface{}) *DbError {
 	return nil
 }
 
+func (r *DatabaseRepo) AutoMigrate(values ...interface{}) *DbError {
+	r.put()
+	defer r.pop()
+
+	db, err := getDB(r.dbKey)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	if err := db.AutoMigrate(values...).Error; err != nil {
+		return warpDBError(db, "DB.AutoMigrate", "")
+	}
+	return nil
+}
+
 type DatabaseRepo struct {
 	dbKey   string
 	channel chan int
@@ -71,6 +79,13 @@ func (r *DatabaseRepo) pop() {
 
 var repos = map[string]*DatabaseRepo{}
 var dblock = sync.Mutex{}
+
+func GetDefault() *DatabaseRepo {
+	return Choice("DEFAULT")
+}
+func SetDefaut(opt DBSetOption) {
+	SetDBSet("DEFAULT", opt)
+}
 
 func Choice(dbKey string) *DatabaseRepo {
 
