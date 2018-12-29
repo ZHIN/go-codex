@@ -281,3 +281,29 @@ func (r *DatabaseRepo) RawSelect(rawSQL string, rowScanCallback RowScanHandler, 
 	}
 	return warpDBError(db, "DB.RawSelect", "")
 }
+
+func (r *DatabaseRepo) ExecuteScalar(rawSQL string, values ...interface{}) *DbError {
+
+	r.put()
+	defer r.pop()
+
+	db, err2 := getDB(r.dbKey)
+
+	if err2 != nil {
+		return err2
+	}
+
+	defer db.Close()
+	var rows *sql.Rows
+	var err error
+	if rows, err = db.Raw(rawSQL, values...).Rows(); err != nil {
+		return warpDBError(db, "DB.RawSelect", fmt.Sprintf("DB.RawSelect Error Conn:%s SQL:%s WHERE:%s...", r.dbKey, rawSQL, values))
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		rows.Scan(values...)
+		break
+	}
+	return warpDBError(db, "DB.RawSelect", "")
+}
