@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
-	"net/http/cookiejar"
+	httpcookiejar "net/http/cookiejar"
 	"net/url"
 	nurl "net/url"
 	"strings"
 	"time"
+
+	cookiejar "github.com/juju/persistent-cookiejar"
 
 	"github.com/zhin/go-codex/configs"
 )
@@ -33,10 +36,21 @@ func (c *HttpClient) PostJSON(url string, formParams map[string]interface{}, res
 func (c *HttpClient) RequestJSON(method string, url string, queryParams map[string]string, formParams map[string]interface{}, responseData interface{}, options *RequestOptions) error {
 
 	var err error
+
+	if options == nil {
+		options = &RequestOptions{}
+	}
+	if options.Headers["Content-Type"] == "" && options.ContentType == 0 {
+		options.ContentType = JSONEncoded
+	}
+
 	responseBuff, err := c.Request(method, url, queryParams, formParams, options)
-
-	err = json.NewDecoder(bytes.NewBuffer(responseBuff)).Decode(responseData)
-
+	if err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewBuffer(responseBuff))
+	decoder.UseNumber()
+	err = decoder.Decode(responseData)
 	if err != nil && configs.Settings.GetBool(httpDebugErrorJSON) {
 		log.Println(fmt.Sprintf("Error:%s", err.Error()))
 		log.Println(fmt.Sprintf("url:%s\ncontent:%s", url, string(responseBuff)))
@@ -62,31 +76,49 @@ func (c *HttpClient) Request(method string, url string, queryParams map[string]s
 	u.RawQuery = params.Encode()
 	url = u.String()
 
-	if options != nil && options.Headers != nil {
-		if contentType := options.Headers["Content-Type"]; strings.HasPrefix(strings.ToLower(contentType),
-			"application/x-www-form-urlencoded") {
-			encodeType = URLEncoded
-		} else if contentType := options.Headers["Content-Type"]; strings.HasPrefix(strings.ToLower(contentType),
-			"application/json") {
-			encodeType = JSONEncoded
-		} else {
-			return nil, fmt.Errorf("unknow http content-type \"%s\"", contentType)
-		}
+	if options == nil {
+		options = &RequestOptions{}
+	}
+	if options.Headers == nil {
+		options.Headers = map[string]string{}
 	}
 
-	if formParams != nil {
-		if encodeType == URLEncoded {
-			urlValues := nurl.Values{}
-			for key, value := range formParams {
-				urlValues.Add(key, fmt.Sprintf("%v", value))
+	if method == "POST" {
+
+		if options.ContentType == 0 {
+			if contentType := options.Headers["Content-Type"]; strings.HasPrefix(strings.ToLower(contentType),
+				"application/x-www-form-urlencoded") {
+				encodeType = URLEncoded
+			} else if contentType := options.Headers["Content-Type"]; strings.HasPrefix(strings.ToLower(contentType),
+				"application/json") {
+				encodeType = JSONEncoded
+			} else {
+				return nil, fmt.Errorf("unknow http content-type \"%s\"", contentType)
 			}
-			byteBuff = bytes.NewBuffer([]byte(urlValues.Encode()))
-		} else if encodeType == JSONEncoded {
-			byteBuff, err = mapToByteBuffer(formParams)
-			if err != nil {
-				return nil, err
+		} else if options.ContentType != 0 {
+			encodeType = options.ContentType
+			if encodeType == URLEncoded {
+				options.Headers["Content-Type"] = "application/x-www-form-urlencoded"
+			} else if encodeType == JSONEncoded {
+				options.Headers["Content-Type"] = "application/json"
 			}
 		}
+
+		if formParams != nil {
+			if encodeType == URLEncoded {
+				urlValues := nurl.Values{}
+				for key, value := range formParams {
+					urlValues.Add(key, fmt.Sprintf("%v", value))
+				}
+				byteBuff = bytes.NewBuffer([]byte(urlValues.Encode()))
+			} else if encodeType == JSONEncoded {
+				byteBuff, err = mapToByteBuffer(formParams)
+				if err != nil {
+					return nil, fmt.Errorf("request json content error:%s", err.Error())
+				}
+			}
+		}
+
 	}
 
 	var req *http.Request
@@ -97,9 +129,8 @@ func (c *HttpClient) Request(method string, url string, queryParams map[string]s
 		req, err = http.NewRequest(method, url, byteBuff)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request content error:%s", err.Error())
 	}
-
 	if options != nil && options.Headers != nil {
 		for key, value := range options.Headers {
 			req.Header.Add(key, value)
@@ -111,7 +142,11 @@ func (c *HttpClient) Request(method string, url string, queryParams map[string]s
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request error:%s", err.Error())
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("http status error %d", resp.StatusCode)
 	}
 	defer resp.Body.Close()
 
@@ -119,7 +154,8 @@ func (c *HttpClient) Request(method string, url string, queryParams map[string]s
 
 	responseBuff, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("response error:%s", err.Error())
+
 	}
 
 	return responseBuff, nil
@@ -141,10 +177,28 @@ func (c *HttpClient) SetTimeout(timeout time.Duration) {
 func (c *HttpClient) SetBeforeSendHook(func(r *http.Request)) {
 
 }
-func (c *HttpClient) UseCookieJar(use bool) {
+
+type CookieJarOption struct {
+	Filename string
+}
+
+func (c *HttpClient) UseCookieJar(use bool, option *CookieJarOption) {
 	if use {
 		if c.client.Jar == nil {
-			jar, _ := cookiejar.New(nil)
+
+			opt := &cookiejar.Options{}
+
+			if option == nil {
+			} else {
+				opt.Filename = option.Filename
+			}
+
+			if opt.Filename == "" {
+				opt.NoPersist = true
+				// opt.Filename = path.Join(os.TempDir(), fmt.Sprintf("gocodex_tmp_cookie_jar_%s", randString(40)))
+			}
+
+			jar, _ := cookiejar.New(opt)
 			c.client.Jar = jar
 		}
 	} else {
@@ -152,10 +206,23 @@ func (c *HttpClient) UseCookieJar(use bool) {
 	}
 }
 
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+func randString(n int) string {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+func (c *HttpClient) Jar() *httpcookiejar.Jar {
+	return c.Jar()
+}
+
 func newClient(option ClientOption) *http.Client {
-
 	transport := &http.Transport{}
-
 	if option.Proxy != "" {
 		proxyURL, err := url.Parse(option.Proxy)
 		if err == nil {
@@ -188,16 +255,12 @@ func NewHttpClient(option ClientOption) *HttpClient {
 		}),
 	}
 
-	if option.UseCookieJar {
-		client.UseCookieJar(true)
-	}
 	return client
 }
 
 type ClientOption struct {
 	TimeoutSecond int
 	Proxy         string
-	UseCookieJar  bool
 }
 
 var DefaultClient *HttpClient
@@ -209,11 +272,11 @@ const (
 	httpDebugErrorJSON          = "http_debug_error_json"
 )
 
-type httpRequestEncodeType int
+type HttpRequestEncodeType int
 
 const (
-	URLEncoded  httpRequestEncodeType = 1
-	JSONEncoded httpRequestEncodeType = 2
+	URLEncoded  HttpRequestEncodeType = 1
+	JSONEncoded HttpRequestEncodeType = 2
 )
 
 func init() {
@@ -224,12 +287,14 @@ func init() {
 	DefaultClient = NewHttpClient(ClientOption{
 		Proxy:         configs.Settings.GetString(httpProxySettingKey),
 		TimeoutSecond: configs.Settings.GetInt(httpTimeoutSecondSettingKey),
-		UseCookieJar:  configs.Settings.GetBool(httpUseCookieJarSettingKey),
 	})
+
+	DefaultClient.UseCookieJar(configs.Settings.GetBool(httpUseCookieJarSettingKey), nil)
 }
 
 type RequestOptions struct {
-	Headers map[string]string
+	Headers     map[string]string
+	ContentType HttpRequestEncodeType
 }
 
 func mapToByteBuffer(data map[string]interface{}) (*bytes.Buffer, error) {
