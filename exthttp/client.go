@@ -24,6 +24,26 @@ type HttpClient struct {
 	hookBeforeSend func(*http.Request)
 }
 
+type HttpResponseError struct {
+	RequestURL     string
+	Status         int
+	ResponseHeader http.Header
+	ResponseData   []byte
+}
+
+func (s *HttpResponseError) Error() string {
+	if s.ResponseData != nil {
+		return fmt.Sprintf("http request error:%s status:%d response:%s", s.RequestURL, s.Status, string(s.ResponseData))
+
+	}
+	return fmt.Sprintf("http request error:%s status:%d", s.RequestURL, s.Status)
+}
+
+func IsHttpResponseError(err error) bool {
+	_, ok := err.(*HttpResponseError)
+	return ok
+}
+
 func (c *HttpClient) GetJSON(url string, queryParams map[string]string, responseData interface{}, options *RequestOptions) error {
 
 	return c.RequestJSON(http.MethodGet, url, queryParams, nil, responseData, options)
@@ -144,18 +164,25 @@ func (c *HttpClient) Request(method string, url string, queryParams map[string]s
 	if err != nil {
 		return nil, fmt.Errorf("request error:%s", err.Error())
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("http status error %d", resp.StatusCode)
-	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		var buff []byte
+		buff, _ = ioutil.ReadAll(resp.Body)
+		return nil, &HttpResponseError{
+			Status:         resp.StatusCode,
+			ResponseHeader: resp.Header,
+			ResponseData:   buff,
+		}
+	}
 
 	var responseBuff []byte
-
 	responseBuff, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("response error:%s", err.Error())
+	}
 
+	if options != nil && options.ResponseHeaders != nil {
+		options.ResponseHeaders = resp.Header
 	}
 
 	return responseBuff, nil
@@ -293,8 +320,9 @@ func init() {
 }
 
 type RequestOptions struct {
-	Headers     map[string]string
-	ContentType HttpRequestEncodeType
+	Headers         map[string]string
+	ContentType     HttpRequestEncodeType
+	ResponseHeaders http.Header
 }
 
 func mapToByteBuffer(data map[string]interface{}) (*bytes.Buffer, error) {
