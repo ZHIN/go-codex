@@ -179,7 +179,7 @@ func (r *DatabaseRepo) Find(item interface{}, option SearchOption) *DbError {
 	dbCount := db
 
 	if option.TotalOut != nil {
-		dbCount.Model(item).Where(option.Where, option.Params).Count(option.TotalOut)
+		dbCount.Model(item).Where(option.Where, option.Params...).Count(option.TotalOut)
 	}
 
 	db = db.Offset(option.Offset)
