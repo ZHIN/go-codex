@@ -78,7 +78,8 @@ func (c *HttpClient) RequestJSON(method string, url string, queryParams map[stri
 	return err
 }
 
-func (c *HttpClient) Request(method string, url string, queryParams map[string]string, formParams map[string]interface{}, options *RequestOptions) ([]byte, error) {
+func (c *HttpClient) RawRequest(method string, url string, queryParams map[string]string, body []byte, options *RequestOptions) ([]byte, error) {
+
 	var byteBuff *bytes.Buffer
 	var err error
 	encodeType := JSONEncoded
@@ -123,22 +124,7 @@ func (c *HttpClient) Request(method string, url string, queryParams map[string]s
 				options.Headers["Content-Type"] = "application/json"
 			}
 		}
-
-		if formParams != nil {
-			if encodeType == URLEncoded {
-				urlValues := nurl.Values{}
-				for key, value := range formParams {
-					urlValues.Add(key, fmt.Sprintf("%v", value))
-				}
-				byteBuff = bytes.NewBuffer([]byte(urlValues.Encode()))
-			} else if encodeType == JSONEncoded {
-				byteBuff, err = mapToByteBuffer(formParams)
-				if err != nil {
-					return nil, fmt.Errorf("request json content error:%s", err.Error())
-				}
-			}
-		}
-
+		byteBuff = bytes.NewBuffer(body)
 	}
 
 	var req *http.Request
@@ -186,6 +172,35 @@ func (c *HttpClient) Request(method string, url string, queryParams map[string]s
 	}
 
 	return responseBuff, nil
+
+}
+
+func (c *HttpClient) Request(method string, url string, queryParams map[string]string, formParams map[string]interface{}, options *RequestOptions) ([]byte, error) {
+	var byteBuff *bytes.Buffer
+	var err error
+	encodeType := JSONEncoded
+	if method == "POST" {
+		if formParams != nil {
+			if encodeType == URLEncoded {
+				urlValues := nurl.Values{}
+				for key, value := range formParams {
+					urlValues.Add(key, fmt.Sprintf("%v", value))
+				}
+				byteBuff = bytes.NewBuffer([]byte(urlValues.Encode()))
+			} else if encodeType == JSONEncoded {
+				byteBuff, err = mapToByteBuffer(formParams)
+				if err != nil {
+					return nil, fmt.Errorf("request json content error:%s", err.Error())
+				}
+			}
+		}
+	}
+	if byteBuff != nil {
+		return c.RawRequest(method, url, queryParams, byteBuff.Bytes(), options)
+	}
+
+	return c.RawRequest(method, url, queryParams, nil, options)
+
 }
 
 func (c *HttpClient) SetProxy(host string, port int) {
