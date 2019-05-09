@@ -89,4 +89,12 @@ func (*jsonUtil) MapToBytes(data map[string]interface{}) ([]byte, error) {
 	return buff, nil
 }
 
+func (c *jsonUtil) MustStringify(data interface{}) string {
+	text, e := c.DataToJSONString(data)
+	if e != nil {
+		return ""
+	}
+	return text
+}
+
 var JSONUtil = jsonUtil{}
