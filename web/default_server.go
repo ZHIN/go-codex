@@ -154,7 +154,7 @@ func (r *JSONResult) SetData(data interface{}) *JSONResult {
 	return r
 }
 
-func (r *JSONResult) SetFiled(codeField string, msgField string, dataField string, errIDField string) *JSONResult {
+func (r *JSONResult) SetField(codeField string, msgField string, dataField string, errIDField string) *JSONResult {
 
 	if codeField != "" {
 		r.codeField = codeField
