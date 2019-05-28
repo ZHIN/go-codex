@@ -1,7 +1,9 @@
 package web
 
 import (
-	"github.com/satori/go.uuid"
+	"encoding/json"
+
+	uuid "github.com/satori/go.uuid"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zhin/go-codex/cerror"
@@ -11,6 +13,11 @@ var Default *gin.Engine
 
 var showErrValue = false
 
+var codeField = "code"
+var msgField = "msg"
+var dataField = "data"
+var errIDField = "errid"
+
 func init() {
 
 	Default = gin.New()
@@ -18,10 +25,49 @@ func init() {
 }
 
 type JSONResult struct {
-	Code  int         `json:"code"`
-	Msg   string      `json:"msg"`
-	ErrID string      `json:"errid,omitempty"`
-	Data  interface{} `json:"data,omitempty"`
+	Code  int
+	Msg   string
+	ErrID string
+	Data  interface{}
+
+	codeField  string
+	msgField   string
+	dataField  string
+	errIDField string
+}
+
+func (u *JSONResult) MarshalJSON() ([]byte, error) {
+
+	val := map[string]interface{}{}
+
+	if u.codeField != "" {
+		val[u.codeField] = u.Code
+	} else {
+		val[codeField] = u.Code
+	}
+
+	if u.msgField != "" {
+		val[u.msgField] = u.Msg
+	} else {
+		val[msgField] = u.Msg
+	}
+
+	if u.Data != nil {
+		if u.dataField != "" {
+			val[u.dataField] = u.Data
+		} else {
+			val[dataField] = u.Data
+		}
+	}
+
+	if u.ErrID != "" {
+		if u.ErrID != "" {
+			val[u.errIDField] = u.ErrID
+		} else {
+			val[errIDField] = u.ErrID
+		}
+	}
+	return json.Marshal(&val)
 }
 
 type DBErrorHandle func(errID string, err error)
@@ -108,6 +154,38 @@ func (r *JSONResult) SetData(data interface{}) *JSONResult {
 	return r
 }
 
+func (r *JSONResult) SetFiled(codeField string, msgField string, dataField string, errIDField string) *JSONResult {
+
+	if codeField != "" {
+		r.codeField = codeField
+	}
+	if msgField != "" {
+		r.msgField = msgField
+	}
+	if dataField != "" {
+		r.dataField = dataField
+	}
+	if errIDField != "" {
+		r.errIDField = errIDField
+	}
+	return r
+}
+
 func ShowErrorDetail(value bool) {
 	showErrValue = value
+}
+
+func SetJSONResultField(_codeField string, _msgField string, _dataField string, _errIDField string) {
+	if _codeField != "" {
+		codeField = _codeField
+	}
+	if _msgField != "" {
+		msgField = _msgField
+	}
+	if _dataField != "" {
+		dataField = _dataField
+	}
+	if _errIDField != "" {
+		errIDField = _errIDField
+	}
 }
