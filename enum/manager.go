@@ -1,4 +1,4 @@
-package kernel
+package enum
 
 const LEVEL_NORMAL int = 0
 const LEVEL_SUCCESS int = 1
