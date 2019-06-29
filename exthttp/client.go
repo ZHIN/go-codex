@@ -179,14 +179,14 @@ func (c *HttpClient) Request(method string, url string, queryParams map[string]s
 	var byteBuff *bytes.Buffer
 	var err error
 	encodeType := JSONEncoded
+
+	if options != nil {
+		encodeType = options.ContentType
+	}
 	if method == "POST" {
 		if formParams != nil {
 			if encodeType == URLEncoded {
-				urlValues := nurl.Values{}
-				for key, value := range formParams {
-					urlValues.Add(key, fmt.Sprintf("%v", value))
-				}
-				byteBuff = bytes.NewBuffer([]byte(urlValues.Encode()))
+				byteBuff = bytes.NewBuffer(EncodeParams(formParams))
 			} else if encodeType == JSONEncoded {
 				byteBuff, err = mapToByteBuffer(formParams)
 				if err != nil {
@@ -356,4 +356,13 @@ func mapToBytes(data map[string]interface{}) ([]byte, error) {
 		return nil, err
 	}
 	return buff, nil
+}
+
+func EncodeParams(values map[string]interface{}) []byte {
+	urlValues := url.Values{}
+	for key, value := range values {
+		urlValues.Add(key, fmt.Sprintf("%v", value))
+	}
+	byteBuff := bytes.NewBuffer([]byte(urlValues.Encode()))
+	return byteBuff.Bytes()
 }
