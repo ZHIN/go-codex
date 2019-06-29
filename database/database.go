@@ -2,90 +2,75 @@ package database
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/jinzhu/gorm"
 )
 
-var dbKeyPoool = map[string]DBSetOption{}
+var dbKeyPoool = map[string]DBSet{}
 
-type DBSetOption struct {
+type DBSet struct {
 	DBType             string
 	DBConnectionString string
 	MaxOpenConns       int
 	MaxIdleConns       int
 }
 
-func SetDBSet(dbKey string, opt DBSetOption) {
+func SetDB(dbKey string, _dbType string, connStr string) {
+
+	dbKeyPoool[dbKey] = DBSet{
+		DBType:             _dbType,
+		DBConnectionString: connStr,
+	}
+}
+
+func SetDBSet(dbKey string, opt DBSet) {
 	dbKeyPoool[dbKey] = opt
 }
 
-func getDB(dbKey string) (*gorm.DB, *DbError) {
+func GetDB(dbKey string) (*gorm.DB, error) {
 
 	if set, found := dbKeyPoool[dbKey]; found {
 		db, err := gorm.Open(set.DBType, set.DBConnectionString)
 		if err != nil {
-			return nil, warpDBError(db, "DB.OPEN", "")
+			return nil, err
 		}
 		db.DB().SetMaxOpenConns(set.MaxOpenConns)
 		db.DB().SetMaxIdleConns(set.MaxIdleConns)
 		return db, nil
 	}
-	return nil, warpDBError(nil, "DB.OPEN", fmt.Sprintf("找不到数据库相关连接配置（%s）", dbKey))
+
+	return nil, fmt.Errorf("找不到数据库相关连接配置（%s）", dbKey)
 
 }
 
-func AutoMigrate(dbKey string, values ...interface{}) *DbError {
-	db, err := getDB(dbKey)
+func GetDBNoErr(dbKey string) *gorm.DB {
+	db, err := GetDB(dbKey)
 	if err != nil {
-		return err
+		panic(err)
+	}
+	return db
+}
+
+func AutoMigrate(dbKey string, values ...interface{}) {
+	db, err := GetDB(dbKey)
+	if err != nil {
+		panic(err)
 	}
 	defer db.Close()
 
-	if err := db.AutoMigrate(values...).Error; err != nil {
-		return warpDBError(db, "DB.AutoMigrate", "")
+	if err = db.AutoMigrate(values...).Error; err != nil {
+		for _, value := range values {
+			logrus.Warnf("AutoMigrate Error (%s)  Type:%v", err.Error(), reflect.TypeOf(value))
+		}
 	}
-	return nil
-}
-
-func (r *DatabaseRepo) AutoMigrate(values ...interface{}) *DbError {
-	r.put()
-	defer r.pop()
-
-	db, err := getDB(r.dbKey)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	if err := db.AutoMigrate(values...).Error; err != nil {
-		return warpDBError(db, "DB.AutoMigrate", "")
-	}
-	return nil
-}
-
-type DatabaseRepo struct {
-	dbKey   string
-	channel chan int
-}
-
-func (r *DatabaseRepo) put() {
-	r.channel <- 0
-}
-
-func (r *DatabaseRepo) pop() {
-	<-r.channel
 }
 
 var repos = map[string]*DatabaseRepo{}
 var dblock = sync.Mutex{}
-
-func GetDefault() *DatabaseRepo {
-	return Choice("DEFAULT")
-}
-func SetDefault(opt DBSetOption) {
-	SetDBSet("DEFAULT", opt)
-}
 
 func Choice(dbKey string) *DatabaseRepo {
 
@@ -103,54 +88,5 @@ func Choice(dbKey string) *DatabaseRepo {
 		channel: make(chan int, maxOpenNum),
 	}
 	return repos[dbKey]
-}
 
-type DbError struct {
-	db      *gorm.DB
-	tag     string
-	message string
-}
-
-func (s *DbError) RecordNotFound() bool {
-	return s.db.RecordNotFound()
-}
-
-func (s *DbError) Error() string {
-	if s.db.Error == nil {
-		return fmt.Sprintf("database error tag:%s message:%s", s.tag, s.message)
-	}
-	return fmt.Sprintf("database error:%s tag:%s message:%s", s.db.Error.Error(), s.tag, s.message)
-}
-
-func warpDBError(db *gorm.DB, tag string, message string) *DbError {
-
-	if db == nil {
-		return &DbError{db: db, tag: tag, message: message}
-	}
-	if db.Error != nil {
-		var err = &DbError{db: db, tag: tag, message: message}
-		if !db.RecordNotFound() {
-			triggerErrorHandles(err)
-		}
-		return err
-	}
-	return nil
-}
-
-type DBErrorHandle func(err *DbError)
-
-var errorHandles = []DBErrorHandle{}
-
-func SetDBErrorHook(handle DBErrorHandle) {
-	errorHandles = append(errorHandles, handle)
-}
-
-func triggerErrorHandles(err *DbError) {
-	if errorHandles != nil {
-		for _, handle := range errorHandles {
-			if handle != nil {
-				handle(err)
-			}
-		}
-	}
 }
