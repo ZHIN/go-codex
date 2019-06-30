@@ -177,8 +177,8 @@ func (r *DatabaseRepo) FirstEX(item interface{}, option SearchOption) error {
 
 func (r *DatabaseRepo) Find(list interface{}, offset int, limit int, where string, order string, params ...interface{}) error {
 	return r.FindEX(list, SearchOption{
-		Limit:  offset,
-		Offset: limit,
+		Limit:  limit,
+		Offset: offset,
 		Where:  where,
 		Params: params,
 		Order:  order,
