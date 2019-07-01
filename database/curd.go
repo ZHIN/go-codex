@@ -137,7 +137,12 @@ type SearchOption struct {
 	TotalOut *int
 }
 
-func (r *DatabaseRepo) First(item interface{}, where string, params ...interface{}) error {
+type DBResult struct {
+	Err              error
+	IsRecordNotFound bool
+}
+
+func (r *DatabaseRepo) First(item interface{}, where string, params ...interface{}) DBResult {
 
 	return r.FirstEX(item, SearchOption{
 		Limit:  1,
@@ -146,12 +151,12 @@ func (r *DatabaseRepo) First(item interface{}, where string, params ...interface
 		Params: params,
 	})
 }
-func (r *DatabaseRepo) FirstEX(item interface{}, option SearchOption) error {
+func (r *DatabaseRepo) FirstEX(item interface{}, option SearchOption) DBResult {
 	r.put()
 	defer r.pop()
 	db, err := getDB(r.dbKey)
 	if err != nil {
-		return err
+		return DBResult{Err: err}
 	}
 	defer db.Close()
 
@@ -167,11 +172,15 @@ func (r *DatabaseRepo) FirstEX(item interface{}, option SearchOption) error {
 	}
 	db = db.Offset(option.Offset)
 	db = db.First(item, values...)
-
 	if db.Error != nil {
-		return warpDBError(db, "DB.First", fmt.Sprintf("DB.First Error Conn:%s Type:%s WHERE:%v", r.dbKey, reflect.TypeOf(item).String(), option.Where))
+
+		return DBResult{
+			Err:              warpDBError(db, "DB.First", fmt.Sprintf("DB.First Error Conn:%s Type:%s WHERE:%v", r.dbKey, reflect.TypeOf(item).String(), option.Where)),
+			IsRecordNotFound: false,
+		}
 	}
-	return nil
+
+	return DBResult{IsRecordNotFound: db.RecordNotFound()}
 
 }
 
