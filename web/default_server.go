@@ -70,11 +70,11 @@ func (u *JSONResult) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&val)
 }
 
-type DBErrorHandle func(errID string, err error)
+type ErrorHandler func(errID string, err error)
 
-var errorHandles = []DBErrorHandle{}
+var errorHandles = []ErrorHandler{}
 
-func SetDBErrorHook(handle DBErrorHandle) {
+func SetErrorHook(handle ErrorHandler) {
 	errorHandles = append(errorHandles, handle)
 }
 

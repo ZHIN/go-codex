@@ -172,8 +172,7 @@ func (r *DatabaseRepo) FirstEX(item interface{}, option SearchOption) DBResult {
 	}
 	db = db.Offset(option.Offset)
 	db = db.First(item, values...)
-	if db.Error != nil {
-
+	if db.Error != nil && !db.RecordNotFound() {
 		return DBResult{
 			Err:              warpDBError(db, "DB.First", fmt.Sprintf("DB.First Error Conn:%s Type:%s WHERE:%v", r.dbKey, reflect.TypeOf(item).String(), option.Where)),
 			IsRecordNotFound: false,
